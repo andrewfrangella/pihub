@@ -1,0 +1,27 @@
+[
+  {"id":"hubtab","type":"tab","label":"Hub Core","disabled":false,"info":"OSC hub.\n\nContract:\n  Devices SEND state to hub  : UDP port 9000, address /<device>/<param>, one float arg 0..1\n  Hub SENDS commands to device: UDP port 9001 on the device's IP, address /<device>/set/<param>\n\nEvery incoming message updates flow.devices (registry of last-seen, IP, and latest value per param)."},
+
+  {"id":"udp_in","type":"udp in","z":"hubtab","name":"OSC in :9000","iface":"","port":"9000","ipv":"udp4","multicast":"false","group":"","datatype":"buffer","x":120,"y":120,"wires":[["osc_dec"]]},
+
+  {"id":"osc_dec","type":"osc","z":"hubtab","name":"decode","path":"","metadata":false,"x":290,"y":120,"wires":[["parse"]]},
+
+  {"id":"parse","type":"function","z":"hubtab","name":"parse + registry","func":"// msg.topic = OSC address, msg.payload = arg(s), msg.ip/msg.port = sender\nif (msg.topic === 'bundle') { return null; } // ignore bundles for now\nconst parts = msg.topic.split('/').filter(Boolean);\nif (parts.length < 2) { node.warn('bad address: ' + msg.topic); return null; }\n\nconst device = parts[0];\nconst param  = parts.slice(1).join('/');\nconst value  = Array.isArray(msg.payload) && msg.payload.length === 1 ? msg.payload[0] : msg.payload;\n\nconst devices = flow.get('devices') || {};\nconst d = devices[device] || { params: {} };\nd.ip = msg.ip;\nd.lastSeen = Date.now();\nd.params[param] = value;\ndevices[device] = d;\nflow.set('devices', devices);\n\nreturn { device, param, value, ip: msg.ip, topic: msg.topic };","outputs":1,"noerr":0,"initialize":"","finalize":"","libs":[],"x":470,"y":120,"wires":[["dbg_in","route"]]},
+
+  {"id":"dbg_in","type":"debug","z":"hubtab","name":"incoming","active":true,"tosidebar":true,"console":false,"complete":"true","targetType":"full","x":680,"y":80,"wires":[]},
+
+  {"id":"route","type":"function","z":"hubtab","name":"routing table","func":"// Minimal routing: source param -> target device/param. Edit freely.\nconst routes = {\n  'cassette/speed': [ { device: 'turntable', param: 'speed', scale: 1.0 } ],\n  // 'tv/disk_rpm':   [ { device: 'cassette',  param: 'speed', scale: 1.0 } ],\n};\n\nconst key = msg.device + '/' + msg.param;\nconst targets = routes[key];\nif (!targets) { return null; }\n\nconst devices = flow.get('devices') || {};\nconst out = [];\nfor (const t of targets) {\n  const dest = devices[t.device];\n  if (!dest || !dest.ip) { node.warn('target not online: ' + t.device); continue; }\n  let v = Number(msg.value) * (t.scale || 1);\n  v = Math.max(0, Math.min(1, v));\n  out.push({\n    topic: '/' + t.device + '/set/' + t.param,\n    payload: { type: 'f', value: v },\n    ip: dest.ip,\n    port: 9001\n  });\n}\nreturn [out];","outputs":1,"noerr":0,"initialize":"","finalize":"","libs":[],"x":690,"y":160,"wires":[["osc_enc"]]},
+
+  {"id":"osc_enc","type":"osc","z":"hubtab","name":"encode","path":"","metadata":false,"x":870,"y":160,"wires":[["udp_out"]]},
+
+  {"id":"udp_out","type":"udp out","z":"hubtab","name":"OSC out (msg.ip:msg.port)","addr":"","iface":"","port":"","ipv":"udp4","outport":"","base64":false,"multicast":"false","x":1080,"y":160,"wires":[]},
+
+  {"id":"inj_cmd","type":"inject","z":"hubtab","name":"manual: turntable speed 0.5","props":[{"p":"topic","vt":"str"},{"p":"payload"}],"repeat":"","crontab":"","once":false,"onceDelay":0.1,"topic":"/turntable/set/speed","payload":"{\"type\":\"f\",\"value\":0.5}","payloadType":"json","x":200,"y":260,"wires":[["lookup_ip"]]},
+
+  {"id":"lookup_ip","type":"function","z":"hubtab","name":"fill ip from registry","func":"const dev = msg.topic.split('/').filter(Boolean)[0];\nconst d = (flow.get('devices') || {})[dev];\nif (!d || !d.ip) { node.warn('device not online: ' + dev); return null; }\nmsg.ip = d.ip; msg.port = 9001;\nreturn msg;","outputs":1,"noerr":0,"initialize":"","finalize":"","libs":[],"x":450,"y":260,"wires":[["osc_enc"]]},
+
+  {"id":"inj_reg","type":"inject","z":"hubtab","name":"every 5s","props":[{"p":"payload"}],"repeat":"5","crontab":"","once":true,"onceDelay":"2","topic":"","payload":"","payloadType":"date","x":130,"y":360,"wires":[["reg_dump"]]},
+
+  {"id":"reg_dump","type":"function","z":"hubtab","name":"registry status","func":"const devices = flow.get('devices') || {};\nconst now = Date.now();\nconst report = {};\nfor (const [name, d] of Object.entries(devices)) {\n  report[name] = { online: (now - d.lastSeen) < 3000, ip: d.ip, ageMs: now - d.lastSeen, params: d.params };\n}\nreturn { payload: report };","outputs":1,"noerr":0,"initialize":"","finalize":"","libs":[],"x":330,"y":360,"wires":[["dbg_reg"]]},
+
+  {"id":"dbg_reg","type":"debug","z":"hubtab","name":"devices","active":true,"tosidebar":true,"console":false,"complete":"payload","targetType":"msg","x":520,"y":360,"wires":[]}
+]
