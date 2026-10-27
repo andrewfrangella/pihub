@@ -1,5 +1,5 @@
 __pycache__/
 *.pyc
 .DS_Store
-.venv/
-ml/data/
+node_modules/
+data/

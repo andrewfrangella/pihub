@@ -1,0 +1,60 @@
+<script type="text/javascript">
+  RED.nodes.registerType('pihub-ml', {
+    category: 'pihub', color: '#c7e0f4', icon: 'font-awesome/fa-sitemap', paletteLabel: 'ml mapper',
+    defaults: {
+      name: { value: '' },
+      learner: { value: 'fluid-mlp' },
+      inputs: { value: 'tv/m', required: true },
+      outputs: { value: 'cassette/m', required: true },
+      hidden: { value: '8' }, activation: { value: '3' }, epochs: { value: 2000 }, lr: { value: 0.01 },
+      k: { value: 3 },
+      rateMs: { value: 50 }, dir: { value: 'ml' }, logValues: { value: true }
+    },
+    inputs: 1, outputs: 2, outputLabels: ['predictions (device ml)', 'status'],
+    label: function () { return this.name || 'ml ' + this.inputs + ' → ' + this.outputs; },
+    oneditprepare: function () {
+      const sync = () => { const mlp = $('#node-input-learner').val() === 'fluid-mlp'; $('.mlp-only').toggle(mlp); $('.knn-only').toggle(!mlp); };
+      $('#node-input-learner').on('change', sync); sync();
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="pihub-ml">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-learner">Learner</label>
+    <select id="node-input-learner"><option value="fluid-mlp">fluid-mlp (FluCoMa MLP regressor)</option><option value="knn">knn (nearest neighbours)</option></select></div>
+  <div class="form-row"><label for="node-input-inputs">Inputs</label><input type="text" id="node-input-inputs" placeholder="tv/m, turntable/drag"></div>
+  <div class="form-row"><label for="node-input-outputs">Outputs</label><input type="text" id="node-input-outputs" placeholder="cassette/m"></div>
+  <div class="form-row mlp-only"><label for="node-input-hidden">Hidden layers</label><input type="text" id="node-input-hidden" placeholder="8  or  8, 4"></div>
+  <div class="form-row mlp-only"><label for="node-input-activation">Activation</label>
+    <select id="node-input-activation"><option value="0">identity</option><option value="1">sigmoid</option><option value="2">relu</option><option value="3">tanh</option></select></div>
+  <div class="form-row mlp-only"><label for="node-input-epochs">Max epochs</label><input type="number" id="node-input-epochs"></div>
+  <div class="form-row mlp-only"><label for="node-input-lr">Learning rate</label><input type="number" id="node-input-lr" step="0.001"></div>
+  <div class="form-row knn-only"><label for="node-input-k">k</label><input type="number" id="node-input-k" min="1"></div>
+  <div class="form-row"><label for="node-input-rateMs">Predict every (ms)</label><input type="number" id="node-input-rateMs"></div>
+  <div class="form-row"><label for="node-input-dir">Data folder</label><input type="text" id="node-input-dir" placeholder="ml (inside data/)"></div>
+  <div class="form-row"><label for="node-input-logValues">Log values</label><input type="checkbox" id="node-input-logValues" style="width:auto"> <span>append every value seen to data/&lt;folder&gt;/log/*.csv</span></div>
+</script>
+
+<script type="text/html" data-help-name="pihub-ml">
+  <p>Learns a mapping from some device parameters (inputs) to others (outputs) from recorded examples, then predicts live.
+     The algorithm is a pluggable <i>learner</i> (see <code>nodes/learners/README.md</code>). <b>fluid-mlp</b> reads and writes
+     FluCoMa <code>fluid.mlpregressor</code> JSON, so models move between the hub and Max / Data Knot.</p>
+  <h3>Wiring</h3>
+  <p>Wire every relevant <b>device in</b> into this node (it needs to see the outputs too, to record targets).
+     Wire output 1 into the <b>device out</b> nodes you want it to drive. Each out node picks the prediction meant for it.</p>
+  <h3>Control messages</h3>
+  <dl class="message-properties">
+    <dt>ml/record</dt><dd>store (current inputs → current outputs) as one training pair</dd>
+    <dt>ml/train</dt><dd>fit on the recorded pairs and save the model</dd>
+    <dt>ml/predict</dt><dd>payload true/false: start or stop emitting predictions whenever an input changes</dd>
+    <dt>ml/save, ml/load, ml/clear, ml/status</dt><dd>files and bookkeeping</dd>
+  </dl>
+  <p>Values are read like <b>device out</b> does: <code>msg.payload</code> if numeric, else <code>msg.value</code>, so a <i>range</i> node between a device in and this node takes effect.
+     Predictions are emitted when an input changes, at most every "predict every" ms.</p>
+  <p>Files in <code>data/&lt;folder&gt;/</code>: <code>dataset-in.json</code>, <code>dataset-out.json</code> (<code>fluid.dataset</code>),
+     <code>model.json</code> (<code>fluid.mlpregressor</code>), and, if logging is on, <code>log/*.csv</code> with every value seen
+     (one file per deploy; it grows without limit, roughly 1 MB per hour per 20 Hz parameter, so prune <code>log/</code> now and then).
+     Give each mapper its own folder. Drop in files written by Max and click <b>load</b>.</p>
+  <p>Training runs on the main thread: dozens of pairs take milliseconds, hundreds can take seconds on a Pi, during which the hub pauses.</p>
+</script>

@@ -6,7 +6,8 @@
 //
 // Arbitration: the slider is the base. A hub command takes over for REMOTE_HOLD_MS after the last command
 // (the hub streams at 20 Hz while predicting, so control stays remote until it stops). Moving the slider
-// by more than GRAB_DELTA hands control straight back to the performer.
+// by more than GRAB_DELTA hands control back to the performer, and it stays local until the hub has been
+// silent for REMOTE_HOLD_MS; the next command after that starts a new remote session.
 //
 // Libraries (Arduino Library Manager): "OSC" (CNMAT), "Adafruit SSD1306", "Adafruit GFX Library".
 // Board: ESP32 Dev Module. Works on arduino-esp32 core 2.x and 3.x.
@@ -48,6 +49,7 @@ bool oledOk = false;
 float potVal = 0.0f, potRef = 0.0f;
 float speedRemote = 0.0f;
 uint32_t remoteUntil = 0;
+bool localOverride = false;   // performer grabbed the slider during a remote session
 float speedOut = 0.0f;
 
 // ---- PWM across core versions
@@ -89,8 +91,9 @@ void onSetM(OSCMessage& m) {
   else if (m.isInt(0))   speedRemote = (float)m.getInt(0);
   else return;
   speedRemote = constrain(speedRemote, 0.0f, 1.0f);
-  remoteUntil = millis() + REMOTE_HOLD_MS;
-  potRef = potVal;                       // reference for the "grab" test
+  uint32_t now = millis();
+  if ((int32_t)(remoteUntil - now) <= 0) { potRef = potVal; localOverride = false; }   // new remote session
+  remoteUntil = now + REMOTE_HOLD_MS;
 }
 
 void drawOled(bool remote) {
@@ -154,8 +157,10 @@ void loop() {
   }
 
   // 4. arbitration
-  bool remote = (int32_t)(remoteUntil - now) > 0;
-  if (remote && fabsf(potVal - potRef) > GRAB_DELTA) { remote = false; remoteUntil = 0; }  // performer grabs back
+  bool remoteActive = (int32_t)(remoteUntil - now) > 0;
+  if (!remoteActive) localOverride = false;
+  else if (!localOverride && fabsf(potVal - potRef) > GRAB_DELTA) localOverride = true;   // performer grabs back
+  bool remote = remoteActive && !localOverride;
   speedOut = remote ? speedRemote : potVal;
   setMotor(speedOut);
 

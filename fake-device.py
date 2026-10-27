@@ -2,7 +2,7 @@
 """Simulated device for testing the hub from your Mac (or any machine).
 
   pip3 install python-osc
-  python3 fake-device.py --hub 192.168.1.50 --name cassette
+  python3 fake-device.py --hub 192.168.1.50 --name laptop
 
 Publishes /<name>/m (motor speed) as a slow sine 0..1 at 20 Hz to hub:9000,
 and listens on :9001 for /<name>/set/<param> commands from the hub.
@@ -16,7 +16,7 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--hub", required=True, help="hub IP")
-ap.add_argument("--name", default="cassette")
+ap.add_argument("--name", default="laptop", help="device class; not tv/cassette while the Dummy Devices tab is active")
 ap.add_argument("--listen", type=int, default=9001)
 args = ap.parse_args()
 

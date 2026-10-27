@@ -1,0 +1,22 @@
+{
+  "name": "pihub",
+  "version": "0.2.0",
+  "description": "Performance hub for a network of OSC devices: embedded Node-RED with a FluCoMa-compatible MLP node",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "reset-flow": "node -e \"require('fs').copyFileSync('flows/hub-flow.json','data/flows.json');console.log('data/flows.json reset to flows/hub-flow.json')\"",
+    "export-flow": "node -e \"require('fs').copyFileSync('data/flows.json','flows/hub-flow.json');console.log('flows/hub-flow.json updated from the live flow')\""
+  },
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=22.9"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-red": "^5.0.9",
+    "node-red-contrib-osc": "^1.1.0",
+    "osc": "^2.4.5"
+  }
+}

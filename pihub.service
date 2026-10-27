@@ -1,0 +1,16 @@
+# Installed by install-hub.sh (it fills in the user and path). Manual: edit, then
+#   sudo cp pihub.service /etc/systemd/system/ && sudo systemctl enable --now pihub
+[Unit]
+Description=pihub performance hub (embedded Node-RED)
+After=network.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__NODE__ __DIR__/app.js
+Restart=on-failure
+RestartSec=2
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

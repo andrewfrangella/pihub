@@ -1,0 +1,75 @@
+<!-- hub config node -->
+<script type="text/javascript">
+  RED.nodes.registerType('pihub-hub', {
+    category: 'config',
+    defaults: { name: { value: 'hub' }, listenPort: { value: 9000, required: true, validate: RED.validators.number() }, devicePort: { value: 9001, required: true, validate: RED.validators.number() }, onlineMs: { value: 3000 } },
+    label: function () { return (this.name || 'hub') + ' :' + this.listenPort; }
+  });
+  RED.nodes.registerType('pihub-device-in', {
+    category: 'pihub', color: '#bfe3c4', icon: 'font-awesome/fa-sign-in', paletteLabel: 'device in',
+    defaults: { name: { value: '' }, hub: { type: 'pihub-hub', required: true }, device: { value: '', required: true }, params: { value: '' } },
+    inputs: 0, outputs: 1, outputLabels: ['device messages'],
+    label: function () { return this.name || (this.device ? this.device + ' in' : 'device in'); }
+  });
+  RED.nodes.registerType('pihub-device-out', {
+    category: 'pihub', color: '#f4d4b0', icon: 'font-awesome/fa-sign-out', align: 'right', paletteLabel: 'device out',
+    defaults: { name: { value: '' }, hub: { type: 'pihub-hub', required: true }, device: { value: '', required: true }, param: { value: '' }, clamp: { value: true } },
+    inputs: 1, outputs: 0,
+    label: function () { return this.name || (this.device ? this.device + ' out' + (this.param ? ' ' + this.param : '') : 'device out'); }
+  });
+  RED.nodes.registerType('pihub-registry', {
+    category: 'pihub', color: '#d9d9d9', icon: 'font-awesome/fa-list', paletteLabel: 'registry',
+    defaults: { name: { value: '' }, hub: { type: 'pihub-hub', required: true }, every: { value: 2 } },
+    inputs: 0, outputs: 1, outputLabels: ['who is online'],
+    label: function () { return this.name || 'registry'; }
+  });
+</script>
+
+<script type="text/html" data-template-name="pihub-hub">
+  <div class="form-row"><label for="node-config-input-name">Name</label><input type="text" id="node-config-input-name"></div>
+  <div class="form-row"><label for="node-config-input-listenPort">Listen port</label><input type="number" id="node-config-input-listenPort" min="1" max="65535"> <span>devices send here</span></div>
+  <div class="form-row"><label for="node-config-input-devicePort">Device port</label><input type="number" id="node-config-input-devicePort" min="1" max="65535"> <span>commands go here</span></div>
+  <div class="form-row"><label for="node-config-input-onlineMs">Online timeout (ms)</label><input type="number" id="node-config-input-onlineMs"></div>
+</script>
+<script type="text/html" data-help-name="pihub-hub">
+  <p>Owns the UDP socket that receives OSC from every device and the registry of who is online. One per hub.</p>
+  <p>Contract: devices send <code>/&lt;device&gt;/&lt;param&gt; &lt;float 0..1&gt;</code> to the listen port at ~20 Hz;
+     the hub sends <code>/&lt;device&gt;/set/&lt;param&gt; &lt;float&gt;</code> to the device's last-seen IP on the device port.</p>
+</script>
+
+<script type="text/html" data-template-name="pihub-device-in">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-hub">Hub</label><input type="text" id="node-input-hub"></div>
+  <div class="form-row"><label for="node-input-device">Device</label><input type="text" id="node-input-device" placeholder="tv"></div>
+  <div class="form-row"><label for="node-input-params">Params</label><input type="text" id="node-input-params" placeholder="all, or: m, pot"></div>
+</script>
+<script type="text/html" data-help-name="pihub-device-in">
+  <p>Emits one message for every parameter the device publishes:
+     <code>msg.device</code>, <code>msg.param</code>, <code>msg.value</code>, plus <code>msg.topic = "/device/param"</code> and <code>msg.payload = value</code>.</p>
+  <p>Wire it straight into a <b>device out</b> for a direct mapping, through a <i>range</i> or <i>function</i> node to scale, or into the <b>ml mapper</b> to learn a mapping.</p>
+</script>
+
+<script type="text/html" data-template-name="pihub-device-out">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-hub">Hub</label><input type="text" id="node-input-hub"></div>
+  <div class="form-row"><label for="node-input-device">Device</label><input type="text" id="node-input-device" placeholder="cassette"></div>
+  <div class="form-row"><label for="node-input-param">Param</label><input type="text" id="node-input-param" placeholder="leave empty to take it from the message"></div>
+  <div class="form-row"><label for="node-input-clamp">Clamp 0..1</label><input type="checkbox" id="node-input-clamp" style="width:auto"></div>
+</script>
+<script type="text/html" data-help-name="pihub-device-out">
+  <p>Sends <code>/&lt;device&gt;/set/&lt;param&gt;</code> to the device. Value is <code>msg.payload</code> if numeric (so a <i>range</i> or
+     <i>change</i> node in between takes effect; numeric strings are accepted), otherwise <code>msg.value</code>.
+     Param is the one configured here, else <code>msg.param</code>, else <code>msg.topic</code>.</p>
+  <p>Messages from the <b>ml mapper</b> carry <code>param = "cassette/m"</code>; this node accepts them only when the device prefix is its own
+     (even with a fixed param configured), so one mapper can feed several outs. Non-numeric values are dropped with a yellow status.</p>
+  <p>Dropped with a red status if the device is offline (not heard from within the hub's online timeout).</p>
+</script>
+
+<script type="text/html" data-template-name="pihub-registry">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-hub">Hub</label><input type="text" id="node-input-hub"></div>
+  <div class="form-row"><label for="node-input-every">Every (s)</label><input type="number" id="node-input-every" step="0.5"></div>
+</script>
+<script type="text/html" data-help-name="pihub-registry">
+  <p>Emits <code>msg.payload = { device: { online, ip, ageMs, params } }</code> on a timer and stores the same object in global context as <code>pihub_devices</code>, for dashboards and function nodes.</p>
+</script>

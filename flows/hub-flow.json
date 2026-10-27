@@ -1,0 +1,947 @@
+[
+ {
+  "id": "hub_cfg",
+  "type": "pihub-hub",
+  "name": "hub",
+  "listenPort": 9000,
+  "devicePort": 9001,
+  "onlineMs": 3000
+ },
+ {
+  "id": "hubtab",
+  "type": "tab",
+  "label": "Hub Core",
+  "disabled": false,
+  "info": "Every device is a pair of nodes: `device in` (what it publishes) and `device out` (what you send it).\n\n  direct mapping : device in  ->  device out                     (optionally through range / function nodes)\n  learned mapping: device in  ->  ml mapper  ->  device out      (record examples, train, predict)\n  manual control : inject     ->  device out\n\nContract: devices send /<device>/<param> <float 0..1> to UDP 9000 at ~20 Hz; the hub sends /<device>/set/<param>\nto the device's IP on UDP 9001. Devices are discovered from their traffic; nothing is configured by hand."
+ },
+ {
+  "id": "c1",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "devices in",
+  "x": 110,
+  "y": 40,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "tv_in",
+  "type": "pihub-device-in",
+  "z": "hubtab",
+  "name": "",
+  "x": 120,
+  "y": 120,
+  "wires": [
+   [
+    "ml",
+    "dbg_tv",
+    "rng"
+   ]
+  ],
+  "hub": "hub_cfg",
+  "device": "tv",
+  "params": ""
+ },
+ {
+  "id": "cas_in",
+  "type": "pihub-device-in",
+  "z": "hubtab",
+  "name": "",
+  "x": 140,
+  "y": 200,
+  "wires": [
+   [
+    "ml"
+   ]
+  ],
+  "hub": "hub_cfg",
+  "device": "cassette",
+  "params": ""
+ },
+ {
+  "id": "dbg_tv",
+  "type": "debug",
+  "z": "hubtab",
+  "name": "tv (click to enable)",
+  "x": 370,
+  "y": 60,
+  "wires": [],
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "",
+  "statusType": "auto"
+ },
+ {
+  "id": "c2",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "learned mapping: record / train / predict from the ML Control tab",
+  "x": 520,
+  "y": 100,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "ml",
+  "type": "pihub-ml",
+  "z": "hubtab",
+  "name": "",
+  "x": 430,
+  "y": 160,
+  "wires": [
+   [
+    "cas_out"
+   ],
+   [
+    "dbg_ml"
+   ]
+  ],
+  "learner": "fluid-mlp",
+  "inputs": "tv/m",
+  "outputs": "cassette/m",
+  "hidden": "8",
+  "activation": "3",
+  "epochs": 2000,
+  "lr": 0.01,
+  "k": 3,
+  "rateMs": 50,
+  "dir": "ml"
+ },
+ {
+  "id": "dbg_ml",
+  "type": "debug",
+  "z": "hubtab",
+  "name": "ml status",
+  "x": 660,
+  "y": 200,
+  "wires": [],
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto"
+ },
+ {
+  "id": "lnk_in",
+  "type": "link in",
+  "z": "hubtab",
+  "name": "from ML Control",
+  "x": 110,
+  "y": 280,
+  "wires": [
+   [
+    "ml"
+   ]
+  ],
+  "links": [
+   "lnk_out"
+  ]
+ },
+ {
+  "id": "c3",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "direct mapping example (disabled): enable this node and disable the ml mapper",
+  "x": 540,
+  "y": 300,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "rng",
+  "type": "range",
+  "z": "hubtab",
+  "name": "invert tv.m -> cassette.m (disabled)",
+  "x": 430,
+  "y": 340,
+  "wires": [
+   [
+    "cas_out"
+   ]
+  ],
+  "minin": "0",
+  "maxin": "1",
+  "minout": "1",
+  "maxout": "0",
+  "action": "scale",
+  "round": false,
+  "property": "payload",
+  "d": true
+ },
+ {
+  "id": "c4",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "devices out",
+  "x": 750,
+  "y": 100,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "cas_out",
+  "type": "pihub-device-out",
+  "z": "hubtab",
+  "name": "",
+  "x": 760,
+  "y": 160,
+  "wires": [],
+  "hub": "hub_cfg",
+  "device": "cassette",
+  "param": "",
+  "clamp": true
+ },
+ {
+  "id": "c5",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "manual control",
+  "x": 130,
+  "y": 400,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "inj_cmd",
+  "type": "inject",
+  "z": "hubtab",
+  "name": "cassette m = 0.5",
+  "x": 150,
+  "y": 440,
+  "wires": [
+   [
+    "cas_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.5",
+  "payloadType": "num"
+ },
+ {
+  "id": "inj_cmd2",
+  "type": "inject",
+  "z": "hubtab",
+  "name": "cassette m = 0.9",
+  "x": 150,
+  "y": 480,
+  "wires": [
+   [
+    "cas_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.9",
+  "payloadType": "num"
+ },
+ {
+  "id": "c6",
+  "type": "comment",
+  "z": "hubtab",
+  "name": "who is online",
+  "x": 130,
+  "y": 540,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "reg",
+  "type": "pihub-registry",
+  "z": "hubtab",
+  "name": "",
+  "x": 140,
+  "y": 580,
+  "wires": [
+   [
+    "dbg_reg"
+   ]
+  ],
+  "hub": "hub_cfg",
+  "every": 2
+ },
+ {
+  "id": "dbg_reg",
+  "type": "debug",
+  "z": "hubtab",
+  "name": "devices",
+  "x": 330,
+  "y": 580,
+  "wires": [],
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto"
+ },
+ {
+  "id": "mltab",
+  "type": "tab",
+  "label": "ML Control",
+  "disabled": false,
+  "info": "Buttons for the ml mapper on Hub Core (wired through the link nodes).\n\n  1. Put the inputs in a state (Dummy Devices: freeze tv m = 0.1) and set the target (Hub Core: cassette m = 0.9).\n  2. record  -> one training pair (current inputs -> current outputs)\n  3. repeat for a few states, then train, then predict on.\n  4. Dummy Devices: resume sine. The cassette follows the learned curve."
+ },
+ {
+  "id": "ml_rec",
+  "type": "inject",
+  "z": "mltab",
+  "name": "record",
+  "x": 120,
+  "y": 80,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/record",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "ml_train",
+  "type": "inject",
+  "z": "mltab",
+  "name": "train",
+  "x": 120,
+  "y": 130,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/train",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "ml_on",
+  "type": "inject",
+  "z": "mltab",
+  "name": "predict on",
+  "x": 120,
+  "y": 180,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/predict",
+  "payload": "true",
+  "payloadType": "bool"
+ },
+ {
+  "id": "ml_off",
+  "type": "inject",
+  "z": "mltab",
+  "name": "predict off",
+  "x": 120,
+  "y": 230,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/predict",
+  "payload": "false",
+  "payloadType": "bool"
+ },
+ {
+  "id": "ml_save",
+  "type": "inject",
+  "z": "mltab",
+  "name": "save",
+  "x": 120,
+  "y": 280,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/save",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "ml_load",
+  "type": "inject",
+  "z": "mltab",
+  "name": "load",
+  "x": 120,
+  "y": 330,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/load",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "ml_clear",
+  "type": "inject",
+  "z": "mltab",
+  "name": "clear pairs",
+  "x": 120,
+  "y": 380,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/clear",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "ml_stat",
+  "type": "inject",
+  "z": "mltab",
+  "name": "status",
+  "x": 120,
+  "y": 430,
+  "wires": [
+   [
+    "lnk_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "ml/status",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "lnk_out",
+  "type": "link out",
+  "z": "mltab",
+  "name": "to ml mapper",
+  "x": 340,
+  "y": 250,
+  "wires": [],
+  "mode": "link",
+  "links": [
+   "lnk_in"
+  ]
+ },
+ {
+  "id": "dummytab",
+  "type": "tab",
+  "label": "Dummy Devices",
+  "disabled": false,
+  "info": "Two simulated devices talking to the hub over real UDP on this machine, so the hub path is exercised exactly as with hardware.\n  dummy TV       : publishes /tv/m at 20 Hz, slow sine + noise. Inject buttons freeze it at a value.\n  dummy cassette : listens on :9001 for /cassette/set/m, remembers it, echoes /cassette/m at 20 Hz.\nDelete this tab when real devices exist (a real cassette on this machine would also need port 9001)."
+ },
+ {
+  "id": "c_d1",
+  "type": "comment",
+  "z": "dummytab",
+  "name": "dummy TV (sender): /tv/m",
+  "x": 150,
+  "y": 40,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "tv_tick",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "20 Hz",
+  "x": 110,
+  "y": 100,
+  "wires": [
+   [
+    "tv_gen"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "0.05",
+  "crontab": "",
+  "once": true,
+  "onceDelay": 1,
+  "topic": "",
+  "payload": "",
+  "payloadType": "date"
+ },
+ {
+  "id": "tv_gen",
+  "type": "function",
+  "z": "dummytab",
+  "name": "tv.m generator",
+  "x": 300,
+  "y": 100,
+  "wires": [
+   [
+    "tv_enc"
+   ]
+  ],
+  "func": "const frozen = flow.get('tv_m_frozen');\nlet v;\nif (typeof frozen === 'number') { v = frozen; }\nelse { const t = Date.now() / 1000; v = 0.5 + 0.4 * Math.sin(t * 0.3) + (Math.random() - 0.5) * 0.02; }\nv = Math.max(0, Math.min(1, v));\nnode.status({ fill: typeof frozen === 'number' ? 'yellow' : 'green', shape: 'dot', text: 'm=' + v.toFixed(3) });\nreturn { topic: '/tv/m', payload: { type: 'f', value: v }, ip: '127.0.0.1', port: 9000 };",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": []
+ },
+ {
+  "id": "tv_enc",
+  "type": "osc",
+  "z": "dummytab",
+  "name": "encode",
+  "x": 480,
+  "y": 100,
+  "wires": [
+   [
+    "tv_udp"
+   ]
+  ],
+  "path": "",
+  "metadata": false
+ },
+ {
+  "id": "tv_udp",
+  "type": "udp out",
+  "z": "dummytab",
+  "name": "to hub :9000",
+  "x": 650,
+  "y": 100,
+  "wires": [],
+  "addr": "",
+  "iface": "",
+  "port": "",
+  "ipv": "udp4",
+  "outport": "",
+  "base64": false,
+  "multicast": "false"
+ },
+ {
+  "id": "tv_f1",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "freeze m = 0.1",
+  "x": 120,
+  "y": 160,
+  "wires": [
+   [
+    "tv_freeze"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "",
+  "payload": "0.1",
+  "payloadType": "num"
+ },
+ {
+  "id": "tv_f2",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "freeze m = 0.5",
+  "x": 120,
+  "y": 200,
+  "wires": [
+   [
+    "tv_freeze"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "",
+  "payload": "0.5",
+  "payloadType": "num"
+ },
+ {
+  "id": "tv_f3",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "freeze m = 0.9",
+  "x": 120,
+  "y": 240,
+  "wires": [
+   [
+    "tv_freeze"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "",
+  "payload": "0.9",
+  "payloadType": "num"
+ },
+ {
+  "id": "tv_f0",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "resume sine",
+  "x": 120,
+  "y": 280,
+  "wires": [
+   [
+    "tv_freeze"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "",
+  "payload": "",
+  "payloadType": "str"
+ },
+ {
+  "id": "tv_freeze",
+  "type": "function",
+  "z": "dummytab",
+  "name": "set frozen value",
+  "x": 320,
+  "y": 220,
+  "wires": [
+   []
+  ],
+  "func": "flow.set('tv_m_frozen', typeof msg.payload === 'number' ? msg.payload : null);\nreturn null;",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": []
+ },
+ {
+  "id": "c_d2",
+  "type": "comment",
+  "z": "dummytab",
+  "name": "dummy cassette (receiver): /cassette/set/m on :9001",
+  "x": 210,
+  "y": 360,
+  "wires": [],
+  "info": ""
+ },
+ {
+  "id": "cas_udp_in",
+  "type": "udp in",
+  "z": "dummytab",
+  "name": "device port :9001",
+  "x": 120,
+  "y": 420,
+  "wires": [
+   [
+    "cas_dec"
+   ]
+  ],
+  "iface": "",
+  "port": "9001",
+  "ipv": "udp4",
+  "multicast": "false",
+  "group": "",
+  "datatype": "buffer"
+ },
+ {
+  "id": "cas_dec",
+  "type": "osc",
+  "z": "dummytab",
+  "name": "decode",
+  "x": 300,
+  "y": 420,
+  "wires": [
+   [
+    "cas_apply"
+   ]
+  ],
+  "path": "",
+  "metadata": false
+ },
+ {
+  "id": "cas_apply",
+  "type": "function",
+  "z": "dummytab",
+  "name": "apply command",
+  "x": 480,
+  "y": 420,
+  "wires": [
+   [
+    "cas_dbg"
+   ]
+  ],
+  "func": "if (msg.topic !== '/cassette/set/m') { return null; }\nconst v = Array.isArray(msg.payload) ? msg.payload[0] : msg.payload;\nif (typeof v !== 'number') { return null; }\nflow.set('cassette_m', v);\nnode.status({ fill: 'blue', shape: 'dot', text: 'm=' + v.toFixed(3) });\nreturn { payload: v, topic: 'cassette.m' };",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": []
+ },
+ {
+  "id": "cas_dbg",
+  "type": "debug",
+  "z": "dummytab",
+  "name": "cassette.m commanded (click to enable)",
+  "x": 740,
+  "y": 420,
+  "wires": [],
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto"
+ },
+ {
+  "id": "cas_tick",
+  "type": "inject",
+  "z": "dummytab",
+  "name": "20 Hz",
+  "x": 110,
+  "y": 500,
+  "wires": [
+   [
+    "cas_state"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "0.05",
+  "crontab": "",
+  "once": true,
+  "onceDelay": 1,
+  "topic": "",
+  "payload": "",
+  "payloadType": "date"
+ },
+ {
+  "id": "cas_state",
+  "type": "function",
+  "z": "dummytab",
+  "name": "echo state",
+  "x": 300,
+  "y": 500,
+  "wires": [
+   [
+    "cas_enc"
+   ]
+  ],
+  "func": "const v = flow.get('cassette_m');\nreturn { topic: '/cassette/m', payload: { type: 'f', value: typeof v === 'number' ? v : 0.5 }, ip: '127.0.0.1', port: 9000 };",
+  "outputs": 1,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": []
+ },
+ {
+  "id": "cas_enc",
+  "type": "osc",
+  "z": "dummytab",
+  "name": "encode",
+  "x": 480,
+  "y": 500,
+  "wires": [
+   [
+    "cas_udp_out"
+   ]
+  ],
+  "path": "",
+  "metadata": false
+ },
+ {
+  "id": "cas_udp_out",
+  "type": "udp out",
+  "z": "dummytab",
+  "name": "to hub :9000",
+  "x": 650,
+  "y": 500,
+  "wires": [],
+  "addr": "",
+  "iface": "",
+  "port": "",
+  "ipv": "udp4",
+  "outport": "",
+  "base64": false,
+  "multicast": "false"
+ }
+]

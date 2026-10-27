@@ -1,77 +1,90 @@
 # pihub
 
-Raspberry Pi 5 hub for a network of performer-controlled devices (mechanical TV, cassette player, turntable, ...).
-The hub runs **Node-RED** as the central OSC receiving station, device registry, and router, with a
-**FluCoMa-compatible MLP service** (Python) beside it for learned mappings between devices.
+A performance hub for a network of performer-controlled devices (mechanical TV, cassette player, turntable, ...).
+One program, runnable on a Raspberry Pi: it embeds the **Node-RED** runtime and editor, adds its own palette of
+**device** and **ML** nodes, and ships with a working default flow. Devices talk to it over **OSC/UDP**.
 
 ```
- devices ──OSC/UDP 9000──▶ Node-RED hub ──copy──▶ ml-service (:9100)
-   ▲                         │  registry            │ MLP predict
-   └────OSC/UDP 9001─────────┘  routing ◀──/ml/...──┘
+ tv ───┐                                    ┌──▶ cassette
+ cassette ─┤  OSC /dev/param  ──▶  pihub  ──┤  OSC /dev/set/param
+ turntable ┘        :9000          (Pi)     └──▶ turntable   :9001
+                                     │
+                     node graph: device in ─▶ [range | function | ml mapper] ─▶ device out
 ```
+
+## The palette
+
+| node | does |
+|---|---|
+| **device in** | emits everything one device publishes: `msg.device`, `msg.param`, `msg.value` (also `topic`/`payload`) |
+| **device out** | sends `/<device>/set/<param>` to that device, if it is online |
+| **ml mapper** | learns a mapping from some parameters to others from recorded examples, then predicts live. Pluggable learner: `fluid-mlp` (FluCoMa-compatible) or `knn` |
+| **registry** | who is online, every N seconds, also in global context `pihub_devices` |
+| *hub* (config) | the UDP socket and device registry; ports and online timeout |
+
+Everything else is standard Node-RED: `range` to scale, `function` for custom logic, `inject` for buttons,
+`debug` to watch, and the palette manager to add `@flowfuse/node-red-dashboard` for a touch UI.
+
+## Device contract
+
+- A device is a **class** (`tv`, `cassette`, `turntable`) with any number of **params** (`m` = motor speed, `pot`, ...).
+- Devices send `/<device>/<param> <float 0..1>` to the hub on UDP **9000**, ~20 Hz (the heartbeat is how the hub knows who is online; 3 s silence = offline).
+- The hub sends `/<device>/set/<param> <float>` to the device's last-seen IP on UDP **9001**.
+- Devices are discovered from their traffic. Nothing is configured by hand.
+- The ml mapper is a virtual device `ml`: its predictions carry `param = "<device>/<param>"`, and a `device out` only accepts the ones addressed to its device, so one mapper can drive several devices.
+
+## Install on the Pi
+
+```
+git clone https://github.com/andrewfrangella/pihub.git ~/pihub
+bash ~/pihub/install-hub.sh          # Node.js 22.9+, npm install, systemd service "pihub" (re-run after git pull)
+# open http://<pi-ip>:1880
+```
+
+Run by hand instead: `npm install && npm start`. Logs: `journalctl -u pihub -f`.
+
+## First run, no hardware
+
+The **Dummy Devices** tab simulates a TV sending `/tv/m` and a cassette receiving `/cassette/set/m` over real UDP.
+On **Hub Core**, `tv in` feeds the `ml mapper`, which feeds `cassette out`. Watch the node status badges and the
+`devices` debug output.
+
+Teach a mapping (same workflow as `fluid.mlpregressor` / Data Knot regression):
+
+1. Dummy Devices: `freeze m = 0.1`. Hub Core: `cassette m = 0.9`. ML Control: **record**.
+2. Repeat for `0.5 → 0.5` and `0.9 → 0.1` (edit the inject values or add your own).
+3. ML Control: **train**, then **predict on**. Dummy Devices: `resume sine`. The cassette now follows the learned curve.
+
+For a direct, non-learned mapping, enable the disabled `range` node (tv in → invert → cassette out) and disable the mapper.
 
 ## Files
 
 | path | what |
 |---|---|
-| `install-hub.sh` | run on the Pi: Node-RED + OSC node + dashboard, Python venv, both as systemd services |
-| `hub-flow.json` | Node-RED flow, three tabs: **Hub Core**, **Dummy Devices**, **ML Control**. Import via the editor menu |
-| `ml/ml-service.py` | MLP regressor service. Records input→target pairs, trains, predicts live. Reads/writes FluCoMa JSON |
-| `ml/ml-config.json` | which `device/param` streams are inputs and outputs, hidden layer sizes, activation |
-| `ml/pihub-ml.service` | systemd unit (installed by the script) |
-| `fake-device.py` | simulated device for testing from a laptop (`pip3 install python-osc`) |
-| `devices/cassette-esp32/` | reference ESP32 device (L298N PWM, slide pot, OLED) following the contract; compiles on core 3.x. Devices are a work in progress, the hub does not depend on them |
+| `app.js` | the program: embeds Node-RED, seeds `data/flows.json` from `flows/hub-flow.json` on first run |
+| `settings.js` | Node-RED settings: trimmed palette, editor theme, `nodes/` as the custom node dir |
+| `nodes/` | the pihub palette (`pihub-hub.js`: hub config, device in/out, registry; `pihub-ml.js`: ml mapper) |
+| `nodes/lib/hub.js` | the OSC socket + registry runtime |
+| `nodes/learners/` | ML algorithms behind the mapper, one file each (see its README to add your own) |
+| `flows/hub-flow.json` | the shipped default flow (3 tabs: Hub Core, ML Control, Dummy Devices) |
+| `data/` | runtime state, not in git: live `flows.json`, `ml/` datasets + models + logs |
+| `install-hub.sh`, `pihub.service` | Pi install and systemd unit |
+| `fake-device.py` | a simulated device to run from a laptop (`pip3 install python-osc`). Give it a name the Dummy Devices tab is not already using, or disable that tab |
+| `devices/` | reference device firmware (cassette: ESP32 + L298N + pot + OLED). Work in progress; the hub does not depend on it |
 
-## Device contract
+`npm run export-flow` copies the live flow back into `flows/` for committing; `npm run reset-flow` does the reverse.
 
-- Each device is a **class** (`tv`, `cassette`, `turntable`) with any number of **params** (`m` = motor speed, ...).
-  `tv.m` on the wire is the OSC address `/tv/m`.
-- Devices send state to the hub on UDP **9000**, address `/<device>/<param>`, one float 0..1, at ~20 Hz (the heartbeat is how the hub knows who is online).
-- Hub sends commands to a device on UDP **9001** at the device's IP, address `/<device>/set/<param>`.
-- The hub learns each device's IP from its first packet; nothing is configured by hand.
-- A device is "online" if the hub heard from it in the last 3 s; commands and routes to an offline device are dropped
-  (the `routing table` node shows a red status while a target is offline).
-- The ML service is a virtual device named `ml`: predictions arrive as `/ml/<device>/<param>` and the
-  routing table forwards them to the real device like any other source.
+## ML files and Max
 
-## Hub-side framework, in one picture
+The mapper writes FluCoMa JSON into `data/ml/`: `dataset-in.json` / `dataset-out.json` (`fluid.dataset`) and,
+for `fluid-mlp`, `model.json` (`fluid.mlpregressor`, same layer layout and activation codes). Open them in Max with
+`read`, or drop Max-written files in and click **load**. Every value the mapper sees is appended to `data/ml/log/<session>.csv`:
+that log is the multi-device performance dataset.
 
-| layer | where | what you edit |
-|---|---|---|
-| receive + registry | Hub Core → `parse + registry` | nothing; it learns devices from traffic |
-| routing | Hub Core → `routing table` | the `routes` object: `'source/param': [{device, param, scale}]` |
-| manual control | Hub Core → inject `manual: ...` | topic `/<device>/set/<param>`, payload `{"type":"f","value":x}` |
-| learned mapping | `ml/ml-config.json` + ML Control tab | `inputs`, `outputs`, `hidden`, `activation` (0 identity, 1 sigmoid, 2 relu, 3 tanh) |
-| simulation | Dummy Devices tab | delete when real devices exist |
+## Changing the ML
 
-## Quick start (on the Pi)
-
-```
-git clone https://github.com/andrewfrangella/pihub.git ~/pi-hub
-bash ~/pi-hub/install-hub.sh
-# open http://<pi-ip>:1880 → menu → Import → hub-flow.json → Deploy
-```
-
-The **Dummy Devices** tab gives you a fake TV sending `/tv/m` and a fake cassette receiving `/cassette/set/m`,
-so the whole path runs with no hardware. Watch the debug sidebar: `incoming` shows every message,
-`devices` shows who is online every 5 s.
-
-## Teaching a mapping (ML Control tab)
-
-Same workflow as `fluid.mlpregressor` / Data Knot regression: show the system a few input states paired with
-the output you want, fit, then let it fill in between.
-
-1. Freeze the TV at a value (`freeze m = 0.1`), set the cassette (`manual: cassette m = 0.5` on Hub Core, or edit the inject).
-2. Click **record** — one training pair (current inputs → current targets).
-3. Repeat for several states. Click **train**. Click **predict on**.
-4. `resume sine` on the TV and watch the cassette follow the learned curve.
-
-Inputs and outputs are listed in `ml/ml-config.json`; add any `device/param` you like, restart the service.
-
-Files written to `ml/data/` are FluCoMa JSON and open directly in Max:
-`dataset-in.json` / `dataset-out.json` (`fluid.dataset read`), `model.json` (`fluid.mlpregressor read`).
-A model trained in Max/Data Knot can be dropped in and loaded the same way (**load**).
-Every incoming value is also appended to `ml/data/log/<session>.csv`.
+The mapper node only does bookkeeping (latest values, recording, files, predictions). The algorithm is a learner
+module with `create`, `fit`, `predict`, `toJSON`: see `nodes/learners/README.md`. Add a file, register it, pick it in the node.
 
 ## Stage mode (Pi as its own access point)
 
@@ -80,4 +93,4 @@ sudo nmcli device wifi hotspot ifname wlan0 ssid PERFNET password perfnet123
 sudo nmcli connection modify Hotspot connection.autoconnect yes
 ```
 
-The Pi is then at `10.42.0.1` (already set in the cassette sketch). Wi-Fi internet is off in this mode; use Ethernet to install things.
+The Pi is then at `10.42.0.1`. Wi-Fi internet is off in this mode; use Ethernet to install things.
