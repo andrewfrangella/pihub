@@ -1,0 +1,10 @@
+{
+  "inputs":  ["tv/m"],
+  "outputs": ["cassette/m"],
+  "hidden":  [8],
+  "activation": 3,
+  "max_iter": 2000,
+  "predict_interval_ms": 50,
+  "hub": { "ip": "127.0.0.1", "port": 9000 },
+  "dir": "data"
+}

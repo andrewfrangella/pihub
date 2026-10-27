@@ -4,9 +4,10 @@
   pip3 install python-osc
   python3 fake-device.py --hub 192.168.1.50 --name cassette
 
-Publishes /<name>/speed as a slow sine 0..1 at 20 Hz to hub:9000,
+Publishes /<name>/m (motor speed) as a slow sine 0..1 at 20 Hz to hub:9000,
 and listens on :9001 for /<name>/set/<param> commands from the hub.
-Run two copies with --name cassette and --name turntable to watch routing work.
+One copy per machine: the hub sends commands to port 9001, and only one process can own it.
+(A second copy with --listen 9002 will publish fine but never receive commands.)
 """
 import argparse, math, threading, time
 from pythonosc.udp_client import SimpleUDPClient
@@ -33,5 +34,5 @@ print(f"[{args.name}] -> hub {args.hub}:9000, listening :{args.listen}")
 t0 = time.time()
 while True:
     v = 0.5 + 0.5 * math.sin((time.time() - t0) * 0.5)
-    client.send_message(f"/{args.name}/speed", float(v))
+    client.send_message(f"/{args.name}/m", float(v))
     time.sleep(0.05)
