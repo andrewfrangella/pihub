@@ -1,0 +1,51 @@
+<script type="text/javascript">
+  RED.nodes.registerType('pihub-describe', {
+    category: 'pihub', color: '#f4ecc0', icon: 'font-awesome/fa-line-chart', paletteLabel: 'describe',
+    defaults: {
+      name: { value: '' },
+      windowMs: { value: 500 }, hopMs: { value: 100 }, rateMs: { value: 0 },
+      mean: { value: true }, dev: { value: true }, speed: { value: true }, range: { value: true },
+      speedScale: { value: 1 },
+      onsets: { value: true }, onsetThreshold: { value: 0.1 }, refractoryMs: { value: 200 }, onsetTopic: { value: '' }
+    },
+    inputs: 1, outputs: 2, outputLabels: ['descriptors (param.mean, .dev, .speed, .range)', 'onsets'],
+    label: function () { return this.name || 'describe'; }
+  });
+</script>
+
+<script type="text/html" data-template-name="pihub-describe">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-windowMs">Window (ms)</label><input type="number" id="node-input-windowMs" min="50"> <span>the descriptors look back this far</span></div>
+  <div class="form-row"><label>Descriptors</label>
+    <input type="checkbox" id="node-input-mean" style="width:auto"> <label for="node-input-mean" style="width:auto">mean</label>
+    <input type="checkbox" id="node-input-dev" style="width:auto"> <label for="node-input-dev" style="width:auto">dev</label>
+    <input type="checkbox" id="node-input-speed" style="width:auto"> <label for="node-input-speed" style="width:auto">speed</label>
+    <input type="checkbox" id="node-input-range" style="width:auto"> <label for="node-input-range" style="width:auto">range</label></div>
+  <div class="form-row"><label for="node-input-speedScale">Speed scale</label><input type="number" id="node-input-speedScale" min="0.01" step="0.1"> <span>units per second that count as speed 1</span></div>
+  <div class="form-row"><label for="node-input-rateMs">Emit every (ms)</label><input type="number" id="node-input-rateMs" min="0"> <span>0 = on every sample</span></div>
+  <hr>
+  <div class="form-row"><label for="node-input-onsets">Onsets</label><input type="checkbox" id="node-input-onsets" style="width:auto"> <span>emit a pulse on output 2 when the value jumps</span></div>
+  <div class="form-row"><label for="node-input-onsetThreshold">Threshold</label><input type="number" id="node-input-onsetThreshold" min="0" step="0.01"> <span>jump within the hop that counts (0: any change)</span></div>
+  <div class="form-row"><label for="node-input-hopMs">Hop (ms)</label><input type="number" id="node-input-hopMs" min="10"></div>
+  <div class="form-row"><label for="node-input-refractoryMs">Refractory (ms)</label><input type="number" id="node-input-refractoryMs" min="0"> <span>one onset at most per this long (never less than the hop)</span></div>
+  <div class="form-row"><label for="node-input-onsetTopic">Onset topic</label><input type="text" id="node-input-onsetTopic" placeholder="e.g. knot/once (empty: /device/param.onset)"></div>
+</script>
+
+<script type="text/html" data-help-name="pihub-describe">
+  <p>Turns a parameter's stream into <b>descriptors of the gesture</b>, the way CinemaKnot's nodes describe an audio signal
+     (energy, centroid, flatness, onsets) rather than passing the raw samples. Over a sliding window, for every parameter it sees:</p>
+  <dl class="message-properties">
+    <dt>mean</dt><dd>where the parameter is, smoothed</dd>
+    <dt>dev</dt><dd>how much it shakes: standard deviation, scaled so the widest possible flutter (a 0/1 square wave) is 1</dd>
+    <dt>speed</dt><dd>how fast it moves: the slope of the window in units per second, divided by the speed scale, clamped to 1</dd>
+    <dt>range</dt><dd>how far it swung inside the window: max − min</dd>
+  </dl>
+  <p>Each is emitted as a new parameter of the same device, named <code>&lt;param&gt;.&lt;descriptor&gt;</code>: a <code>tv/m</code> stream becomes
+     <code>tv/m.mean</code>, <code>tv/m.dev</code>, <code>tv/m.speed</code>, <code>tv/m.range</code>. Those names work anywhere a parameter does: as
+     <b>knot</b> or <b>ml mapper</b> inputs, or straight into a <b>device out</b> with a fixed param.</p>
+  <p><b>Onsets</b> (output 2): when the value jumps by more than the threshold within one hop, one pulse
+     (<code>value = 1</code>, with <code>delta</code>, <code>from</code>, <code>to</code>) is emitted, then nothing for the refractory time
+     (which is never shorter than the hop, so one jump is one onset).
+     Set the onset topic to <code>knot/once</code> and wire output 2 into a knot: a needle drop re-asks the knot.</p>
+  <p>Wire a <b>device in</b> into this node. One describe node handles every parameter of that device.</p>
+</script>

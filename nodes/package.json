@@ -1,12 +1,14 @@
 {
   "name": "pihub-nodes",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "pihub palette: hub config, device in/out, registry, ml mapper",
+  "description": "pihub palette: hub config, device in/out, registry, ml mapper, knot, describe",
   "node-red": {
     "nodes": {
       "pihub-hub": "pihub-hub.js",
-      "pihub-ml": "pihub-ml.js"
+      "pihub-ml": "pihub-ml.js",
+      "pihub-knot": "pihub-knot.js",
+      "pihub-describe": "pihub-describe.js"
     }
   }
 }

@@ -100,15 +100,15 @@
    ]
   ],
   "learner": "fluid-mlp",
-  "inputs": "tv/m",
-  "outputs": "cassette/m",
   "hidden": "8",
   "activation": "3",
   "epochs": 2000,
   "lr": 0.01,
   "k": 3,
   "rateMs": 50,
-  "dir": "ml"
+  "dir": "ml",
+  "inputParams": "tv/m",
+  "outputParams": "cassette/m"
  },
  {
   "id": "dbg_ml",
@@ -262,6 +262,35 @@
   "onceDelay": 0.1,
   "topic": "m",
   "payload": "0.9",
+  "payloadType": "num"
+ },
+ {
+  "id": "inj_cmd3",
+  "type": "inject",
+  "z": "hubtab",
+  "name": "cassette m = 0.1",
+  "x": 150,
+  "y": 520,
+  "wires": [
+   [
+    "cas_out"
+   ]
+  ],
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.1",
   "payloadType": "num"
  },
  {
@@ -556,6 +585,13 @@
   "links": [
    "lnk_in"
   ]
+ },
+ {
+  "id": "knottab",
+  "type": "tab",
+  "label": "Knot",
+  "disabled": false,
+  "info": "Retrieval instead of regression (CinemaKnot): record states of the devices as labelled entries, then let the live inputs recall the nearest one.\n\nRecipe with the dummy devices: Dummy Devices 'freeze m = 0.1', here 'cassette m = 0.9', 'record dark'. Then 0.5 / 0.5 / 'record mid', then 0.9 / 0.1 / 'record bright'. 'query on', then Dummy Devices 'resume sine': the cassette steps between the three recorded states instead of following a curve. Try 'randomness 0.5', and watch the onsets (a freeze button is a jump) re-ask the knot."
  },
  {
   "id": "dummytab",
@@ -943,5 +979,763 @@
   "outport": "",
   "base64": false,
   "multicast": "false"
+ },
+ {
+  "id": "kc1",
+  "type": "comment",
+  "z": "knottab",
+  "name": "knot: retrieval, not regression. tv/m recalls the nearest recorded state of cassette/m (ML Control 'predict off' first: the mapper and the knot both drive the cassette)",
+  "x": 440,
+  "y": 40,
+  "info": "",
+  "wires": []
+ },
+ {
+  "id": "k_tv_in",
+  "type": "pihub-device-in",
+  "z": "knottab",
+  "name": "",
+  "x": 120,
+  "y": 120,
+  "hub": "hub_cfg",
+  "device": "tv",
+  "params": "",
+  "wires": [
+   [
+    "knot",
+    "k_desc"
+   ]
+  ]
+ },
+ {
+  "id": "k_cas_in",
+  "type": "pihub-device-in",
+  "z": "knottab",
+  "name": "",
+  "x": 140,
+  "y": 200,
+  "hub": "hub_cfg",
+  "device": "cassette",
+  "params": "",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "knot",
+  "type": "pihub-knot",
+  "z": "knottab",
+  "name": "",
+  "weights": "",
+  "metric": "euclidean",
+  "k": 3,
+  "randomness": 0,
+  "hold": 0.02,
+  "rateMs": 50,
+  "dir": "knot",
+  "x": 450,
+  "y": 160,
+  "wires": [
+   [
+    "k_cas_out"
+   ],
+   [
+    "k_dbg_match"
+   ],
+   [
+    "k_dbg_status"
+   ]
+  ],
+  "inputParams": "tv/m",
+  "outputParams": "cassette/m"
+ },
+ {
+  "id": "k_cas_out",
+  "type": "pihub-device-out",
+  "z": "knottab",
+  "name": "",
+  "x": 760,
+  "y": 120,
+  "hub": "hub_cfg",
+  "device": "cassette",
+  "param": "",
+  "clamp": true,
+  "wires": []
+ },
+ {
+  "id": "k_dbg_match",
+  "type": "debug",
+  "z": "knottab",
+  "name": "knot match (click to enable)",
+  "x": 790,
+  "y": 180,
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto",
+  "wires": []
+ },
+ {
+  "id": "k_dbg_status",
+  "type": "debug",
+  "z": "knottab",
+  "name": "knot status",
+  "x": 760,
+  "y": 240,
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto",
+  "wires": []
+ },
+ {
+  "id": "kc3",
+  "type": "comment",
+  "z": "knottab",
+  "name": "describe: tv/m → tv/m.mean .dev (flutter) .speed .range. A jump in tv/m (a freeze button) is an onset, sent as knot/once: the knot re-asks with a fresh roll",
+  "x": 480,
+  "y": 300,
+  "info": "",
+  "wires": []
+ },
+ {
+  "id": "k_desc",
+  "type": "pihub-describe",
+  "z": "knottab",
+  "name": "",
+  "windowMs": 500,
+  "hopMs": 100,
+  "rateMs": 0,
+  "mean": true,
+  "dev": true,
+  "speed": true,
+  "range": true,
+  "speedScale": 1,
+  "onsets": true,
+  "onsetThreshold": 0.15,
+  "refractoryMs": 300,
+  "onsetTopic": "knot/once",
+  "x": 450,
+  "y": 360,
+  "wires": [
+   [
+    "k_dbg_desc"
+   ],
+   [
+    "knot",
+    "k_dbg_onset"
+   ]
+  ]
+ },
+ {
+  "id": "k_dbg_desc",
+  "type": "debug",
+  "z": "knottab",
+  "name": "tv/m descriptors (click to enable)",
+  "x": 800,
+  "y": 340,
+  "active": false,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto",
+  "wires": []
+ },
+ {
+  "id": "k_dbg_onset",
+  "type": "debug",
+  "z": "knottab",
+  "name": "onsets",
+  "x": 750,
+  "y": 400,
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "complete": "payload",
+  "targetType": "msg",
+  "statusVal": "",
+  "statusType": "auto",
+  "wires": []
+ },
+ {
+  "id": "kc4",
+  "type": "comment",
+  "z": "knottab",
+  "name": "knot control",
+  "x": 110,
+  "y": 460,
+  "info": "",
+  "wires": []
+ },
+ {
+  "id": "k_rec_dark",
+  "type": "inject",
+  "z": "knottab",
+  "name": "record \"dark\"",
+  "x": 130,
+  "y": 500,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/record",
+  "payload": "dark",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_rec_mid",
+  "type": "inject",
+  "z": "knottab",
+  "name": "record \"mid\"",
+  "x": 130,
+  "y": 540,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/record",
+  "payload": "mid",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_rec_bright",
+  "type": "inject",
+  "z": "knottab",
+  "name": "record \"bright\"",
+  "x": 130,
+  "y": 580,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/record",
+  "payload": "bright",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_rec_auto",
+  "type": "inject",
+  "z": "knottab",
+  "name": "record (auto label)",
+  "x": 130,
+  "y": 620,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/record",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_q_on",
+  "type": "inject",
+  "z": "knottab",
+  "name": "query on",
+  "x": 330,
+  "y": 500,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/query",
+  "payload": "true",
+  "payloadType": "bool",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_q_off",
+  "type": "inject",
+  "z": "knottab",
+  "name": "query off",
+  "x": 330,
+  "y": 540,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/query",
+  "payload": "false",
+  "payloadType": "bool",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_once",
+  "type": "inject",
+  "z": "knottab",
+  "name": "once (fresh roll)",
+  "x": 330,
+  "y": 580,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/once",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_recall",
+  "type": "inject",
+  "z": "knottab",
+  "name": "recall \"dark\"",
+  "x": 330,
+  "y": 620,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/recall",
+  "payload": "dark",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_r0",
+  "type": "inject",
+  "z": "knottab",
+  "name": "randomness 0",
+  "x": 530,
+  "y": 500,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/randomness",
+  "payload": "0",
+  "payloadType": "num",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_r5",
+  "type": "inject",
+  "z": "knottab",
+  "name": "randomness 0.5",
+  "x": 530,
+  "y": 540,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/randomness",
+  "payload": "0.5",
+  "payloadType": "num",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_r1",
+  "type": "inject",
+  "z": "knottab",
+  "name": "randomness 1",
+  "x": 530,
+  "y": 580,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/randomness",
+  "payload": "1",
+  "payloadType": "num",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_k2",
+  "type": "inject",
+  "z": "knottab",
+  "name": "k = 2",
+  "x": 530,
+  "y": 620,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/k",
+  "payload": "2",
+  "payloadType": "num",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_save",
+  "type": "inject",
+  "z": "knottab",
+  "name": "save",
+  "x": 730,
+  "y": 500,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/save",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_load",
+  "type": "inject",
+  "z": "knottab",
+  "name": "load",
+  "x": 730,
+  "y": 540,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/load",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_clear",
+  "type": "inject",
+  "z": "knottab",
+  "name": "clear",
+  "x": 730,
+  "y": 580,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/clear",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "k_stat",
+  "type": "inject",
+  "z": "knottab",
+  "name": "status",
+  "x": 730,
+  "y": 620,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "knot/status",
+  "payload": "",
+  "payloadType": "str",
+  "wires": [
+   [
+    "knot"
+   ]
+  ]
+ },
+ {
+  "id": "kc5",
+  "type": "comment",
+  "z": "knottab",
+  "name": "set the cassette by hand before recording a cue (or move the real one)",
+  "x": 290,
+  "y": 680,
+  "info": "",
+  "wires": []
+ },
+ {
+  "id": "k_c9",
+  "type": "inject",
+  "z": "knottab",
+  "name": "cassette m = 0.9",
+  "x": 140,
+  "y": 720,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.9",
+  "payloadType": "num",
+  "wires": [
+   [
+    "k_cas_out"
+   ]
+  ]
+ },
+ {
+  "id": "k_c5",
+  "type": "inject",
+  "z": "knottab",
+  "name": "cassette m = 0.5",
+  "x": 140,
+  "y": 760,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.5",
+  "payloadType": "num",
+  "wires": [
+   [
+    "k_cas_out"
+   ]
+  ]
+ },
+ {
+  "id": "k_c1",
+  "type": "inject",
+  "z": "knottab",
+  "name": "cassette m = 0.1",
+  "x": 140,
+  "y": 800,
+  "props": [
+   {
+    "p": "topic",
+    "vt": "str"
+   },
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "crontab": "",
+  "once": false,
+  "onceDelay": 0.1,
+  "topic": "m",
+  "payload": "0.1",
+  "payloadType": "num",
+  "wires": [
+   [
+    "k_cas_out"
+   ]
+  ]
  }
 ]

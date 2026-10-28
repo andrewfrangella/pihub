@@ -1,0 +1,66 @@
+<script type="text/javascript">
+  RED.nodes.registerType('pihub-knot', {
+    category: 'pihub', color: '#e2d4f4', icon: 'font-awesome/fa-dot-circle-o', paletteLabel: 'knot',
+    defaults: {
+      name: { value: '' },
+      inputParams: { value: 'tv/m', required: true },
+      outputParams: { value: 'cassette/m', required: true },
+      weights: { value: '' },
+      metric: { value: 'euclidean' },
+      k: { value: 3, validate: RED.validators.number() },
+      randomness: { value: 0, validate: RED.validators.number() },
+      hold: { value: 0.02, validate: RED.validators.number() },
+      rateMs: { value: 50 },
+      dir: { value: 'knot' }
+    },
+    inputs: 1, outputs: 3, outputLabels: ['recalled state (device knot)', 'match: id, distance, neighbours', 'status'],
+    label: function () { return this.name || 'knot ' + this.inputParams + ' → ' + this.outputParams; }
+  });
+</script>
+
+<script type="text/html" data-template-name="pihub-knot">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-inputParams">Inputs</label><input type="text" id="node-input-inputParams" placeholder="tv/m, turntable/drag.speed"></div>
+  <div class="form-row"><label for="node-input-outputParams">Outputs</label><input type="text" id="node-input-outputParams" placeholder="cassette/m"></div>
+  <div class="form-row"><label for="node-input-weights">Weights</label><input type="text" id="node-input-weights" placeholder="one per input, e.g. 1, 0.5 (empty = equal)"></div>
+  <div class="form-row"><label for="node-input-metric">Distance</label>
+    <select id="node-input-metric"><option value="euclidean">euclidean</option><option value="manhattan">manhattan</option></select></div>
+  <div class="form-row"><label for="node-input-k">k</label><input type="number" id="node-input-k" min="1" step="1"> <span>neighbourhood size</span></div>
+  <div class="form-row"><label for="node-input-randomness">Randomness</label><input type="number" id="node-input-randomness" min="0" max="1" step="0.05"> <span>0 nearest only … 1 any of the k nearest</span></div>
+  <div class="form-row"><label for="node-input-hold">Hold</label><input type="number" id="node-input-hold" min="0" step="0.01"> <span>hysteresis, in distance units</span></div>
+  <div class="form-row"><label for="node-input-rateMs">Query every (ms)</label><input type="number" id="node-input-rateMs"></div>
+  <div class="form-row"><label for="node-input-dir">Data folder</label><input type="text" id="node-input-dir" placeholder="knot (inside data/)"></div>
+</script>
+
+<script type="text/html" data-help-name="pihub-knot">
+  <p><b>Retrieval instead of regression.</b> The knot remembers states of the devices as <i>entries</i> (the inputs' values, the
+     outputs' values, a label) and answers the live inputs with <b>one recorded state</b>: the nearest entry, or, with randomness, one
+     of the <i>k</i> nearest. It never interpolates. Every output was once a real state of the devices, and the knot also tells you
+     how far away the live gesture was from it. After CinemaKnot's corpus and <code>queryKnot</code>.</p>
+  <h3>Wiring</h3>
+  <p>Wire the <b>device in</b> (or <b>describe</b>) of every input <i>and</i> every output into this node (it has to see the outputs to
+     record them). Wire output 1 into the <b>device out</b> nodes it should drive; each picks the value meant for it.
+     Output 2 is the match for debug nodes, dashboards or further logic; output 3 is status text.</p>
+  <h3>Control messages</h3>
+  <dl class="message-properties">
+    <dt>knot/record <span class="property-type">payload: label (optional)</span></dt><dd>store the current inputs and outputs as an entry. Same label again replaces it. No label: <code>point-N</code></dd>
+    <dt>knot/query <span class="property-type">payload: true/false</span></dt><dd>start or stop answering live, whenever an input changes</dd>
+    <dt>knot/once</dt><dd>answer right now with a fresh choice (and a fresh random roll). Wire an <b>onset</b> here</dd>
+    <dt>knot/recall <span class="property-type">payload: label</span></dt><dd>emit that entry directly, like a cue; it holds until the inputs move to a new neighbourhood</dd>
+    <dt>knot/randomness, knot/k, knot/hold <span class="property-type">number</span></dt><dd>change the policy live</dd>
+    <dt>knot/forget <span class="property-type">payload: label</span></dt><dd>remove one entry</dd>
+    <dt>knot/save, knot/load, knot/clear, knot/status</dt><dd>files and bookkeeping</dd>
+  </dl>
+  <h3>Policy</h3>
+  <p><b>k</b> is the neighbourhood. <b>Randomness</b> is the chance that a choice is a random member of the neighbourhood instead of the
+     nearest; the roll happens when the nearest entry changes or on <code>knot/once</code>, never on every tick, so a still input stays on
+     one entry. <b>Hold</b> is hysteresis: the current entry is kept while it is within that distance of the nearest, so an input
+     sitting on a boundary does not flicker. <b>Weights</b> make some inputs count more in the distance.</p>
+  <h3>Messages</h3>
+  <p>Output 1: <code>{ device: "knot", param: "cassette/m", value, payload, knot: { id, distance } }</code>.
+     Output 2: <code>payload = { id, distance, changed, rolled, how, neighbors: [{ id, distance }], query, outputs }</code>, also
+     <code>msg.id</code> and <code>msg.distance</code>.</p>
+  <p>Files in <code>data/&lt;folder&gt;/</code>: <code>dataset-in.json</code> and <code>dataset-out.json</code>, FluCoMa <code>fluid.dataset</code>
+     with the labels as ids. They are the same two files the <b>ml mapper</b> writes, so one recorded set of states can be read as a
+     regression by the mapper or as a knot here. Saved on every record; give each knot its own folder.</p>
+</script>

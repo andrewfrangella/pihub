@@ -4,14 +4,14 @@
     defaults: {
       name: { value: '' },
       learner: { value: 'fluid-mlp' },
-      inputs: { value: 'tv/m', required: true },
-      outputs: { value: 'cassette/m', required: true },
+      inputParams: { value: 'tv/m', required: true },
+      outputParams: { value: 'cassette/m', required: true },
       hidden: { value: '8' }, activation: { value: '3' }, epochs: { value: 2000 }, lr: { value: 0.01 },
       k: { value: 3 },
       rateMs: { value: 50 }, dir: { value: 'ml' }, logValues: { value: true }
     },
     inputs: 1, outputs: 2, outputLabels: ['predictions (device ml)', 'status'],
-    label: function () { return this.name || 'ml ' + this.inputs + ' → ' + this.outputs; },
+    label: function () { return this.name || 'ml ' + this.inputParams + ' → ' + this.outputParams; },
     oneditprepare: function () {
       const sync = () => { const mlp = $('#node-input-learner').val() === 'fluid-mlp'; $('.mlp-only').toggle(mlp); $('.knn-only').toggle(!mlp); };
       $('#node-input-learner').on('change', sync); sync();
@@ -23,8 +23,8 @@
   <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
   <div class="form-row"><label for="node-input-learner">Learner</label>
     <select id="node-input-learner"><option value="fluid-mlp">fluid-mlp (FluCoMa MLP regressor)</option><option value="knn">knn (nearest neighbours)</option></select></div>
-  <div class="form-row"><label for="node-input-inputs">Inputs</label><input type="text" id="node-input-inputs" placeholder="tv/m, turntable/drag"></div>
-  <div class="form-row"><label for="node-input-outputs">Outputs</label><input type="text" id="node-input-outputs" placeholder="cassette/m"></div>
+  <div class="form-row"><label for="node-input-inputParams">Inputs</label><input type="text" id="node-input-inputParams" placeholder="tv/m, turntable/drag"></div>
+  <div class="form-row"><label for="node-input-outputParams">Outputs</label><input type="text" id="node-input-outputParams" placeholder="cassette/m"></div>
   <div class="form-row mlp-only"><label for="node-input-hidden">Hidden layers</label><input type="text" id="node-input-hidden" placeholder="8  or  8, 4"></div>
   <div class="form-row mlp-only"><label for="node-input-activation">Activation</label>
     <select id="node-input-activation"><option value="0">identity</option><option value="1">sigmoid</option><option value="2">relu</option><option value="3">tanh</option></select></div>
@@ -54,7 +54,7 @@
      Predictions are emitted when an input changes, at most every "predict every" ms.</p>
   <p>Files in <code>data/&lt;folder&gt;/</code>: <code>dataset-in.json</code>, <code>dataset-out.json</code> (<code>fluid.dataset</code>),
      <code>model.json</code> (<code>fluid.mlpregressor</code>), and, if logging is on, <code>log/*.csv</code> with every value seen
-     (one file per deploy; it grows without limit, roughly 1 MB per hour per 20 Hz parameter, so prune <code>log/</code> now and then).
+     (one file per deploy; it grows without limit, about 3 MB per hour per 20 Hz parameter, so prune <code>log/</code> now and then).
      Give each mapper its own folder. Drop in files written by Max and click <b>load</b>.</p>
   <p>Training runs on the main thread: dozens of pairs take milliseconds, hundreds can take seconds on a Pi, during which the hub pauses.</p>
 </script>

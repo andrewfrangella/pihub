@@ -15,27 +15,15 @@ const LEARNERS = {
   'knn':       require('./learners/knn.js'),
 };
 
-// fluid.dataset helpers; pairs rows by id like FluCoMa does
-const idOrder = k => (/^point-\d+$/.test(k) ? [0, Number(k.slice(6)), ''] : [1, 0, k]);
-const cmpId = (a, b) => { const x = idOrder(a), y = idOrder(b); return x[0] - y[0] || x[1] - y[1] || (x[2] < y[2] ? -1 : x[2] > y[2] ? 1 : 0); };
-function datasetToJSON(rows) { return { cols: rows.length ? rows[0].length : 0, data: Object.fromEntries(rows.map((r, i) => ['point-' + i, r.slice()])) }; }
-function pairedDatasets(jin, jout) {
-  if (!jin || typeof jin.data !== 'object' || !jin.data || !jout || typeof jout.data !== 'object' || !jout.data) throw new Error('not a fluid.dataset (no "data" object)');
-  const a = jin.data, b = jout.data, has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-  const common = Object.keys(a).filter(k => has(b, k)).sort(cmpId);
-  const dropped = Object.keys(a).length + Object.keys(b).length - 2 * common.length;
-  const row = (d, k) => { const r = d[k]; if (!Array.isArray(r) || !r.length || !r.every(Number.isFinite)) throw new Error('bad row ' + k); return r.map(Number); };
-  const X = common.map(k => row(a, k)), Y = common.map(k => row(b, k));
-  if (X.some(r => r.length !== X[0].length) || Y.some(r => r.length !== Y[0].length)) throw new Error('ragged dataset');
-  return { X, Y, note: dropped ? ` (${dropped} unpaired ids dropped)` : '' };
-}
+const { toDataset: datasetToJSON, pairDatasets: pairedDatasets } = require('./lib/dataset.js');   // fluid.dataset read/write, shared with the knot
 
 module.exports = function (RED) {
   function MLNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
     const list = s => String(s || '').split(',').map(t => t.trim().replace(/^\//, '')).filter(Boolean);
-    const inputs = list(config.inputs), outputs = list(config.outputs);
+    // config keys are inputParams/outputParams: Node-RED reserves `inputs`/`outputs` for port counts (older flows are read)
+    const inputs = list(config.inputParams ?? config.inputs), outputs = list(config.outputParams ?? config.outputs);
     const learnerName = LEARNERS[config.learner] ? config.learner : 'fluid-mlp';
     const learner = LEARNERS[learnerName];
     const cfg = { nIn: inputs.length, nOut: outputs.length,
@@ -52,7 +40,8 @@ module.exports = function (RED) {
     if (!inputs.length || !outputs.length) { node.status({ fill: 'red', shape: 'ring', text: 'set inputs and outputs' }); return; }
 
     const cur = Object.fromEntries([...inputs, ...outputs].map(k => [k, null]));
-    let X = [], Y = [], model = null, predicting = false, lastPred = 0, pendingPred = null;
+    let X = [], Y = [], model = null, predicting = false, lastPred = -Infinity, pendingPred = null;
+    const now = () => performance.now();                 // monotonic: a stepping system clock cannot stall the rate limiter
 
     // value log: one CSV per deploy. Any stream error disables logging instead of crashing the process.
     let log = null;
@@ -147,13 +136,13 @@ module.exports = function (RED) {
     const predictNow = (send) => {
       const x = inputs.map(k => cur[k]);
       if (!predicting || !model || !x.every(v => v !== null)) return;
-      lastPred = Date.now();
+      lastPred = now();
       let y;
       try { y = model.predict(x); } catch (e) { node.error('predict failed: ' + e.message); predicting = false; status('predict off (error)', send); return; }
       send([outputs.map((k, i) => { const v = Math.min(1, Math.max(0, y[i])); return { device: 'ml', param: k, value: v, topic: '/ml/' + k, payload: v }; }), null]);
     };
     const schedulePredict = (send) => {
-      const wait = rateMs - (Date.now() - lastPred);
+      const wait = rateMs - (now() - lastPred);
       if (wait <= 0) { predictNow(send); return; }
       if (!pendingPred) pendingPred = setTimeout(() => { pendingPred = null; predictNow(send); }, wait);
     };
